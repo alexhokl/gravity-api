@@ -1,6 +1,6 @@
 # Gravity API CLI [![Build Status](https://travis-ci.org/alexhokl/gravity-api.svg?branch=master)](https://travis-ci.org/alexhokl/gravity-api)
 
-A command line tool to manage SQL backups on AWS RDS
+A command line tool to interact with Gravity APIs
 
 ##### Prerequisites
 
