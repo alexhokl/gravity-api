@@ -273,7 +273,7 @@ func loginCommand(c *cli.Context) error {
 		return err
 	}
 	cmd := CommandLine{}
-	output, err := executeHTTPCommand(&cmd, c.Bool("verbose"), "", []string{
+	output, err := executeHTTPCommand(&cmd, c.GlobalBool("verbose"), "", []string{
 		"-X",
 		"POST",
 		"-d",
@@ -287,7 +287,7 @@ func loginCommand(c *cli.Context) error {
 	if !strings.Contains(output, "200 OK") {
 		return errors.New("Unable to login")
 	}
-	jqOutput, errJq := executeJqCommand(&cmd, c.Bool("verbose"), []string{
+	jqOutput, errJq := executeJqCommand(&cmd, c.GlobalBool("verbose"), []string{
 		".access_token",
 	})
 	if errJq != nil {
@@ -321,7 +321,7 @@ func getCommand(c *cli.Context) error {
 	}
 
 	cmd := CommandLine{}
-	output, err := executeHTTPCommand(&cmd, c.Bool("verbose"), config.Token, []string{
+	output, err := executeHTTPCommand(&cmd, c.GlobalBool("verbose"), config.Token, []string{
 		fmt.Sprintf("%s%s%s", config.URL, c.String("resource"), queryString),
 	})
 	if err != nil {
@@ -329,7 +329,7 @@ func getCommand(c *cli.Context) error {
 	}
 	fmt.Println(output)
 
-	jqOutput, errJq := executeJqCommand(&cmd, c.Bool("verbose"), []string{
+	jqOutput, errJq := executeJqCommand(&cmd, c.GlobalBool("verbose"), []string{
 		c.String("selector"),
 	})
 	if errJq != nil {
@@ -356,7 +356,7 @@ func postCommand(c *cli.Context) error {
 	}
 
 	cmd := CommandLine{}
-	output, err := executeHTTPCommand(&cmd, c.Bool("verbose"), config.Token, []string{
+	output, err := executeHTTPCommand(&cmd, c.GlobalBool("verbose"), config.Token, []string{
 		"-X",
 		"POST",
 		"-H",
@@ -370,7 +370,7 @@ func postCommand(c *cli.Context) error {
 	}
 	fmt.Println(output)
 
-	jqOutput, errJq := executeJqCommand(&cmd, c.Bool("verbose"), []string{
+	jqOutput, errJq := executeJqCommand(&cmd, c.GlobalBool("verbose"), []string{
 		c.String("selector"),
 	})
 	if errJq != nil {
@@ -397,7 +397,7 @@ func putCommand(c *cli.Context) error {
 	}
 
 	cmd := CommandLine{}
-	output, err := executeHTTPCommand(&cmd, c.Bool("verbose"), config.Token, []string{
+	output, err := executeHTTPCommand(&cmd, c.GlobalBool("verbose"), config.Token, []string{
 		"-X",
 		"PUT",
 		"-H",
@@ -411,7 +411,7 @@ func putCommand(c *cli.Context) error {
 	}
 	fmt.Println(output)
 
-	jqOutput, errJq := executeJqCommand(&cmd, c.Bool("verbose"), []string{
+	jqOutput, errJq := executeJqCommand(&cmd, c.GlobalBool("verbose"), []string{
 		c.String("selector"),
 	})
 	if errJq != nil {
@@ -438,7 +438,7 @@ func patchCommand(c *cli.Context) error {
 	}
 
 	cmd := CommandLine{}
-	output, err := executeHTTPCommand(&cmd, c.Bool("verbose"), config.Token, []string{
+	output, err := executeHTTPCommand(&cmd, c.GlobalBool("verbose"), config.Token, []string{
 		"-X",
 		"PATCH",
 		"-H",
@@ -452,7 +452,7 @@ func patchCommand(c *cli.Context) error {
 	}
 	fmt.Println(output)
 
-	jqOutput, errJq := executeJqCommand(&cmd, c.Bool("verbose"), []string{
+	jqOutput, errJq := executeJqCommand(&cmd, c.GlobalBool("verbose"), []string{
 		c.String("selector"),
 	})
 	if errJq != nil {
@@ -479,7 +479,7 @@ func deleteCommand(c *cli.Context) error {
 	}
 
 	cmd := CommandLine{}
-	output, err := executeHTTPCommand(&cmd, c.Bool("verbose"), config.Token, []string{
+	output, err := executeHTTPCommand(&cmd, c.GlobalBool("verbose"), config.Token, []string{
 		"-X",
 		"DELETE",
 		fmt.Sprintf("%s%s%s", config.URL, c.String("resource"), queryString),
@@ -489,7 +489,7 @@ func deleteCommand(c *cli.Context) error {
 	}
 	fmt.Println(output)
 
-	jqOutput, errJq := executeJqCommand(&cmd, c.Bool("verbose"), []string{
+	jqOutput, errJq := executeJqCommand(&cmd, c.GlobalBool("verbose"), []string{
 		c.String("selector"),
 	})
 	if errJq != nil {
