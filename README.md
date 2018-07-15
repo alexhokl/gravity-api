@@ -48,10 +48,10 @@ gravity-api get -r /api/booking/stats
 
 ###### Get with selected response
 
-Query and select only the second item in `Items`.
+Query and select `Grade` property in `Items`.
 
 ```sh
-gravity-api get -r /api/booking/stats -s .Items[1]
+gravity-api get -r /api/booking/stats -s '.Items[] | { grade: .Grade }'
 ```
 
 ###### Get with parameters from a json file

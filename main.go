@@ -26,26 +26,50 @@ type Configuration struct {
 
 // Command indicates the requirements of executing a command
 type Command interface {
-	Execute(name string, isVerbose bool, args []string) (string, error)
+	GetCommand(name string, isVerbose bool, args []string) *exec.Cmd
 }
 
 // CommandLine executes commands
 type CommandLine struct {
 }
 
-// Execute executes the specified commands
-func (c *CommandLine) Execute(name string, isVerbose bool, args []string) (string, error) {
+// GetCommand retrieve the command to be executed
+func (c *CommandLine) GetCommand(name string, isVerbose bool, args []string) *exec.Cmd {
 	if isVerbose {
 		fmt.Println("Command executed:", name, args)
 	}
-	byteOutput, err := exec.Command(name, args...).Output()
-	return string(byteOutput), err
+	return exec.Command(name, args...)
 }
 
 const configuationFilename = ".gravity-api.yaml"
 const responseTempFilename = "gravity-api-response"
 
 func main() {
+	resourceFlag := cli.StringFlag{
+		Name:  "resource, r",
+		Usage: "URI to the resource API",
+	}
+	selectorFlag := cli.StringFlag{
+		Name:  "selector, s",
+		Usage: "jq selector to the json response",
+		Value: ".",
+	}
+	paramFileFlag := cli.StringFlag{
+		Name:  "file, f",
+		Usage: "JSON data to be included in query string",
+	}
+	fileFlag := cli.StringFlag{
+		Name:  "file, f",
+		Usage: "JSON data (this cannot be used with parameter --data)",
+	}
+	dataFlag := cli.StringFlag{
+		Name:  "data, d",
+		Usage: "JSON data (this cannot be used with parameter --file)",
+	}
+
+	queryFlags := []cli.Flag{resourceFlag, selectorFlag, paramFileFlag}
+	dataFlags := []cli.Flag{resourceFlag, selectorFlag, fileFlag, dataFlag}
+
 	app := cli.NewApp()
 	app.Usage = "A CLI tool to interact with Gravity APIs"
 	app.Commands = []cli.Command{
@@ -87,115 +111,33 @@ func main() {
 			Action: loginCommand,
 		},
 		{
-			Name:  "get",
-			Usage: "Retrieve data from API",
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:  "resource, r",
-					Usage: "URI to the resource API",
-				},
-				cli.StringFlag{
-					Name:  "selector, s",
-					Usage: "jq selector to the json response",
-					Value: ".",
-				},
-				cli.StringFlag{
-					Name:  "file, f",
-					Usage: "JSON data to be included in query string",
-				},
-			},
+			Name:   "get",
+			Usage:  "Retrieve data from API",
+			Flags:  queryFlags,
 			Action: getCommand,
 		},
 		{
-			Name:  "post",
-			Usage: "Create resource via API",
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:  "resource, r",
-					Usage: "URI to the resource API",
-				},
-				cli.StringFlag{
-					Name:  "data, d",
-					Usage: "JSON data (this cannot be used with parameter --file)",
-				},
-				cli.StringFlag{
-					Name:  "file, f",
-					Usage: "JSON data (this cannot be used with parameter --data)",
-				},
-				cli.StringFlag{
-					Name:  "selector, s",
-					Usage: "jq selector to the json response",
-					Value: ".",
-				},
-			},
+			Name:   "post",
+			Usage:  "Create resource via API",
+			Flags:  dataFlags,
 			Action: postCommand,
 		},
 		{
-			Name:  "put",
-			Usage: "Modified data via API",
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:  "resource, r",
-					Usage: "URI to the resource API",
-				},
-				cli.StringFlag{
-					Name:  "data, d",
-					Usage: "JSON data (this cannot be used with parameter --file)",
-				},
-				cli.StringFlag{
-					Name:  "file, f",
-					Usage: "JSON data (this cannot be used with parameter --data)",
-				},
-				cli.StringFlag{
-					Name:  "selector, s",
-					Usage: "jq selector to the json response",
-					Value: ".",
-				},
-			},
+			Name:   "put",
+			Usage:  "Modified data via API",
+			Flags:  dataFlags,
 			Action: putCommand,
 		},
 		{
-			Name:  "patch",
-			Usage: "Patch data via API",
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:  "resource, r",
-					Usage: "URI to the resource API",
-				},
-				cli.StringFlag{
-					Name:  "data, d",
-					Usage: "JSON data (this cannot be used with parameter --file)",
-				},
-				cli.StringFlag{
-					Name:  "file, f",
-					Usage: "JSON data (this cannot be used with parameter --data)",
-				},
-				cli.StringFlag{
-					Name:  "selector, s",
-					Usage: "jq selector to the json response",
-					Value: ".",
-				},
-			},
+			Name:   "patch",
+			Usage:  "Patch data via API",
+			Flags:  dataFlags,
 			Action: patchCommand,
 		},
 		{
-			Name:  "delete",
-			Usage: "Delete data from API",
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:  "resource, r",
-					Usage: "URI to the resource API",
-				},
-				cli.StringFlag{
-					Name:  "selector, s",
-					Usage: "jq selector to the json response",
-					Value: ".",
-				},
-				cli.StringFlag{
-					Name:  "file, f",
-					Usage: "JSON data to be included in query string",
-				},
-			},
+			Name:   "delete",
+			Usage:  "Delete data from API",
+			Flags:  queryFlags,
 			Action: deleteCommand,
 		},
 	}
@@ -306,123 +248,31 @@ func loginCommand(c *cli.Context) error {
 }
 
 func getCommand(c *cli.Context) error {
-	config, errConfig := getValidatedConfiguration()
-	if errConfig != nil {
-		return errConfig
-	}
-
-	queryString := ""
-	if c.String("file") != "" {
-		queryStr, errJSON := getQueryStringFromJSONFile(c.String("file"))
-		if errJSON != nil {
-			return errJSON
-		}
-		queryString = queryStr
-	}
-
 	cmd := CommandLine{}
-	output, err := executeHTTPCommand(&cmd, c.GlobalBool("verbose"), config.Token, []string{
-		fmt.Sprintf("%s%s%s", config.URL, c.String("resource"), queryString),
-	})
-	if err != nil {
-		return err
-	}
-	fmt.Println(output)
-
-	jqOutput, errJq := executeJqCommand(&cmd, c.GlobalBool("verbose"), []string{
-		c.String("selector"),
-	})
-	if errJq != nil {
-		return errJq
-	}
-	fmt.Println(jqOutput)
-
-	return nil
+	return executeQueryStringCommands(c, &cmd, "GET")
 }
 
 func postCommand(c *cli.Context) error {
-	if c.String("data") != "" && c.String("file") != "" {
-		return errors.New("Parameter --data cannot be used with parameter --file")
-	}
-
-	json, errData := getData(c)
-	if errData != nil {
-		return errData
-	}
-
-	config, errConfig := getValidatedConfiguration()
-	if errConfig != nil {
-		return errConfig
-	}
-
 	cmd := CommandLine{}
-	output, err := executeHTTPCommand(&cmd, c.GlobalBool("verbose"), config.Token, []string{
-		"-X",
-		"POST",
-		"-H",
-		"Content-Type: application/json",
-		"-d",
-		json,
-		fmt.Sprintf("%s%s", config.URL, c.String("resource")),
-	})
-	if err != nil {
-		return err
-	}
-	fmt.Println(output)
-
-	jqOutput, errJq := executeJqCommand(&cmd, c.GlobalBool("verbose"), []string{
-		c.String("selector"),
-	})
-	if errJq != nil {
-		return errJq
-	}
-	fmt.Println(jqOutput)
-
-	return nil
+	return executeDataCommands(c, &cmd, "POST")
 }
 
 func putCommand(c *cli.Context) error {
-	if c.String("data") != "" && c.String("file") != "" {
-		return errors.New("Parameter --data cannot be used with parameter --file")
-	}
-
-	json, errData := getData(c)
-	if errData != nil {
-		return errData
-	}
-
-	config, errConfig := getValidatedConfiguration()
-	if errConfig != nil {
-		return errConfig
-	}
-
 	cmd := CommandLine{}
-	output, err := executeHTTPCommand(&cmd, c.GlobalBool("verbose"), config.Token, []string{
-		"-X",
-		"PUT",
-		"-H",
-		"Content-Type: application/json",
-		"-d",
-		json,
-		fmt.Sprintf("%s%s", config.URL, c.String("resource")),
-	})
-	if err != nil {
-		return err
-	}
-	fmt.Println(output)
-
-	jqOutput, errJq := executeJqCommand(&cmd, c.GlobalBool("verbose"), []string{
-		c.String("selector"),
-	})
-	if errJq != nil {
-		return errJq
-	}
-	fmt.Println(jqOutput)
-
-	return nil
+	return executeDataCommands(c, &cmd, "PUT")
 }
 
 func patchCommand(c *cli.Context) error {
+	cmd := CommandLine{}
+	return executeDataCommands(c, &cmd, "PATCH")
+}
+
+func deleteCommand(c *cli.Context) error {
+	cmd := CommandLine{}
+	return executeQueryStringCommands(c, &cmd, "DELETE")
+}
+
+func executeDataCommands(c *cli.Context, cmd Command, verb string) error {
 	if c.String("data") != "" && c.String("file") != "" {
 		return errors.New("Parameter --data cannot be used with parameter --file")
 	}
@@ -437,33 +287,10 @@ func patchCommand(c *cli.Context) error {
 		return errConfig
 	}
 
-	cmd := CommandLine{}
-	output, err := executeHTTPCommand(&cmd, c.GlobalBool("verbose"), config.Token, []string{
-		"-X",
-		"PATCH",
-		"-H",
-		"Content-Type: application/json",
-		"-d",
-		json,
-		fmt.Sprintf("%s%s", config.URL, c.String("resource")),
-	})
-	if err != nil {
-		return err
-	}
-	fmt.Println(output)
-
-	jqOutput, errJq := executeJqCommand(&cmd, c.GlobalBool("verbose"), []string{
-		c.String("selector"),
-	})
-	if errJq != nil {
-		return errJq
-	}
-	fmt.Println(jqOutput)
-
-	return nil
+	return executeCommands(config, cmd, verb, c.String("resource"), "", json, c.String("selector"), c.GlobalBool("verbose"))
 }
 
-func deleteCommand(c *cli.Context) error {
+func executeQueryStringCommands(c *cli.Context, cmd Command, verb string) error {
 	config, errConfig := getValidatedConfiguration()
 	if errConfig != nil {
 		return errConfig
@@ -478,20 +305,28 @@ func deleteCommand(c *cli.Context) error {
 		queryString = queryStr
 	}
 
-	cmd := CommandLine{}
-	output, err := executeHTTPCommand(&cmd, c.GlobalBool("verbose"), config.Token, []string{
+	return executeCommands(config, cmd, verb, c.String("resource"), queryString, "", c.String("selector"), c.GlobalBool("verbose"))
+}
+
+func executeCommands(config *Configuration, cmd Command, verb string, resource string, queryString string, jsonData string, selector string, isVerbose bool) error {
+	args := []string{
 		"-X",
-		"DELETE",
-		fmt.Sprintf("%s%s%s", config.URL, c.String("resource"), queryString),
-	})
+		verb,
+	}
+
+	if jsonData != "" {
+		args = append(args, "-H", "Content-Type: application/json", "-d", jsonData)
+	}
+
+	args = append(args, fmt.Sprintf("%s%s%s", config.URL, resource, queryString))
+
+	output, err := executeHTTPCommand(cmd, isVerbose, config.Token, args)
 	if err != nil {
 		return err
 	}
 	fmt.Println(output)
 
-	jqOutput, errJq := executeJqCommand(&cmd, c.GlobalBool("verbose"), []string{
-		c.String("selector"),
-	})
+	jqOutput, errJq := executeJqCommand(cmd, isVerbose, []string{selector})
 	if errJq != nil {
 		return errJq
 	}
@@ -511,7 +346,7 @@ func executeHTTPCommand(c Command, isVerbose bool, token string, args []string) 
 	for _, a := range args {
 		allArgs = append(allArgs, a)
 	}
-	output, err := c.Execute("httpstat", isVerbose, allArgs)
+	output, err := execute(c, "httpstat", isVerbose, allArgs)
 	if err != nil {
 		return "", err
 	}
@@ -519,8 +354,8 @@ func executeHTTPCommand(c Command, isVerbose bool, token string, args []string) 
 }
 
 func executeJqCommand(c Command, isVerbose bool, args []string) (string, error) {
-	catCommand := exec.Command("cat", filepath.Join(os.TempDir(), responseTempFilename))
-	jqCommand := exec.Command("jq", args...)
+	catCommand := c.GetCommand("cat", isVerbose, []string{filepath.Join(os.TempDir(), responseTempFilename)})
+	jqCommand := c.GetCommand("jq", isVerbose, args)
 
 	r, w := io.Pipe()
 	catCommand.Stdout = w
@@ -536,6 +371,12 @@ func executeJqCommand(c Command, isVerbose bool, args []string) (string, error) 
 	jqCommand.Wait()
 
 	return string(jqBuffer.Bytes()), nil
+}
+
+func execute(c Command, name string, isVerbose bool, args []string) (string, error) {
+	cmd := c.GetCommand(name, isVerbose, args)
+	byteOutput, err := cmd.Output()
+	return string(byteOutput), err
 }
 
 func writeConfiguration(configPath string, configurationBytes []byte) error {
