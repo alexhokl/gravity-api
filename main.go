@@ -63,6 +63,13 @@ func main() {
 				},
 			},
 			Action: configureCommand,
+			Subcommands: []cli.Command{
+				cli.Command{
+					Name:   "show",
+					Usage:  "Show the current configuration",
+					Action: showConfigurationCommand,
+				},
+			},
 		},
 		{
 			Name:  "login",
@@ -213,6 +220,20 @@ func configureCommand(c *cli.Context) error {
 	} else {
 		fmt.Printf("Configuration file %s has been updated.\n", configPath)
 	}
+	return nil
+}
+
+func showConfigurationCommand(c *cli.Context) error {
+	configPath, errHome := getConfigPath(configuationFilename)
+	if errHome != nil {
+		return errHome
+	}
+	config := Configuration{}
+	if err := getStoredConfiguration(configPath, &config); err != nil {
+		return err
+	}
+	fmt.Printf("url: %s\n", config.URL)
+	fmt.Printf("token: %s\n", config.Token)
 	return nil
 }
 
