@@ -275,6 +275,7 @@ func loginCommand(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println(output)
 	if !strings.Contains(output, "200 OK") {
 		return errors.New("Unable to login")
 	}
