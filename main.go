@@ -99,6 +99,10 @@ func main() {
 					Usage: "jq selector to the json response",
 					Value: ".",
 				},
+				cli.StringFlag{
+					Name:  "file, f",
+					Usage: "JSON data to be included in query string",
+				},
 			},
 			Action: getCommand,
 		},
@@ -186,6 +190,10 @@ func main() {
 					Name:  "selector, s",
 					Usage: "jq selector to the json response",
 					Value: ".",
+				},
+				cli.StringFlag{
+					Name:  "file, f",
+					Usage: "JSON data to be included in query string",
 				},
 			},
 			Action: deleteCommand,
@@ -303,9 +311,18 @@ func getCommand(c *cli.Context) error {
 		return errConfig
 	}
 
+	queryString := ""
+	if c.String("file") != "" {
+		queryStr, errJSON := getQueryStringFromJSONFile(c.String("file"))
+		if errJSON != nil {
+			return errJSON
+		}
+		queryString = queryStr
+	}
+
 	cmd := CommandLine{}
 	output, err := executeHTTPCommand(&cmd, c.Bool("verbose"), config.Token, []string{
-		fmt.Sprintf("%s%s", config.URL, c.String("resource")),
+		fmt.Sprintf("%s%s%s", config.URL, c.String("resource"), queryString),
 	})
 	if err != nil {
 		return err
@@ -452,11 +469,20 @@ func deleteCommand(c *cli.Context) error {
 		return errConfig
 	}
 
+	queryString := ""
+	if c.String("file") != "" {
+		queryStr, errJSON := getQueryStringFromJSONFile(c.String("file"))
+		if errJSON != nil {
+			return errJSON
+		}
+		queryString = queryStr
+	}
+
 	cmd := CommandLine{}
 	output, err := executeHTTPCommand(&cmd, c.Bool("verbose"), config.Token, []string{
 		"-X",
 		"DELETE",
-		fmt.Sprintf("%s%s", config.URL, c.String("resource")),
+		fmt.Sprintf("%s%s%s", config.URL, c.String("resource"), queryString),
 	})
 	if err != nil {
 		return err
@@ -612,4 +638,83 @@ func getData(c *cli.Context) (string, error) {
 		return json, nil
 	}
 	return "", nil
+}
+
+func getQueryStringFromJSONFile(path string) (string, error) {
+	bytes, errRead := ioutil.ReadFile(path)
+	if errRead != nil {
+		return "", errRead
+	}
+
+	str := string(bytes)
+	if !isJSON(str) {
+		return "", errors.New("The specified file does not contain valid JSON")
+	}
+
+	var objmap map[string]*json.RawMessage
+	err := json.Unmarshal(bytes, &objmap)
+	if err != nil {
+		return "", err
+	}
+
+	array := []string{}
+	for k, v := range objmap {
+		if i, errInt := getIntFromJSON(v); errInt != nil {
+			if f, errFloat := getFloatFromJSON(v); errFloat != nil {
+				if f, errBool := getBoolFromJSON(v); errBool != nil {
+					if s, errString := getStringFromJSON(v); errString != nil {
+						// skip and do nothing
+					} else {
+						array = append(array, fmt.Sprintf("%s=%s", k, s))
+					}
+				} else {
+					if f {
+						array = append(array, fmt.Sprintf("%s=true", k))
+					} else {
+						array = append(array, fmt.Sprintf("%s=false", k))
+					}
+				}
+			} else {
+				array = append(array, fmt.Sprintf("%s=%f", k, f))
+			}
+		} else {
+			array = append(array, fmt.Sprintf("%s=%d", k, i))
+		}
+	}
+
+	builder := strings.Builder{}
+
+	for i, v := range array {
+		if i == 0 {
+			builder.WriteString(fmt.Sprintf("?%s", v))
+		} else {
+			builder.WriteString(fmt.Sprintf("&%s", v))
+		}
+	}
+
+	return builder.String(), nil
+}
+
+func getIntFromJSON(jsonObj *json.RawMessage) (int, error) {
+	var value int
+	err := json.Unmarshal(*jsonObj, &value)
+	return value, err
+}
+
+func getFloatFromJSON(jsonObj *json.RawMessage) (float64, error) {
+	var value float64
+	err := json.Unmarshal(*jsonObj, &value)
+	return value, err
+}
+
+func getBoolFromJSON(jsonObj *json.RawMessage) (bool, error) {
+	var value bool
+	err := json.Unmarshal(*jsonObj, &value)
+	return value, err
+}
+
+func getStringFromJSON(jsonObj *json.RawMessage) (string, error) {
+	var value string
+	err := json.Unmarshal(*jsonObj, &value)
+	return value, err
 }
