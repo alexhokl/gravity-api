@@ -136,7 +136,7 @@ func main() {
 			Action: putCommand,
 		},
 		{
-			Name:  "Patch",
+			Name:  "patch",
 			Usage: "Patch data via API",
 			Flags: []cli.Flag{
 				cli.StringFlag{
