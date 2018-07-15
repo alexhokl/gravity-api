@@ -40,7 +40,6 @@ func (c *CommandLine) Execute(name string, isVerbose bool, args []string) (strin
 	}
 	byteOutput, err := exec.Command(name, args...).Output()
 	return string(byteOutput), err
-
 }
 
 const configuationFilename = ".gravity-api.yaml"
@@ -113,7 +112,11 @@ func main() {
 				},
 				cli.StringFlag{
 					Name:  "data, d",
-					Usage: "JSON data",
+					Usage: "JSON data (this cannot be used with parameter --file)",
+				},
+				cli.StringFlag{
+					Name:  "file, f",
+					Usage: "JSON data (this cannot be used with parameter --data)",
 				},
 				cli.StringFlag{
 					Name:  "selector, s",
@@ -133,7 +136,11 @@ func main() {
 				},
 				cli.StringFlag{
 					Name:  "data, d",
-					Usage: "JSON data",
+					Usage: "JSON data (this cannot be used with parameter --file)",
+				},
+				cli.StringFlag{
+					Name:  "file, f",
+					Usage: "JSON data (this cannot be used with parameter --data)",
 				},
 				cli.StringFlag{
 					Name:  "selector, s",
@@ -153,7 +160,11 @@ func main() {
 				},
 				cli.StringFlag{
 					Name:  "data, d",
-					Usage: "JSON data",
+					Usage: "JSON data (this cannot be used with parameter --file)",
+				},
+				cli.StringFlag{
+					Name:  "file, f",
+					Usage: "JSON data (this cannot be used with parameter --data)",
 				},
 				cli.StringFlag{
 					Name:  "selector, s",
@@ -312,10 +323,13 @@ func getCommand(c *cli.Context) error {
 }
 
 func postCommand(c *cli.Context) error {
-	if c.String("data") != "" {
-		if !isJSON(c.String("data")) {
-			return errors.New("Parameter --data is not in a proper JSON representation")
-		}
+	if c.String("data") != "" && c.String("file") != "" {
+		return errors.New("Parameter --data cannot be used with parameter --file")
+	}
+
+	json, errData := getData(c)
+	if errData != nil {
+		return errData
 	}
 
 	config, errConfig := getValidatedConfiguration()
@@ -330,7 +344,7 @@ func postCommand(c *cli.Context) error {
 		"-H",
 		"Content-Type: application/json",
 		"-d",
-		c.String("data"),
+		json,
 		fmt.Sprintf("%s%s", config.URL, c.String("resource")),
 	})
 	if err != nil {
@@ -350,10 +364,13 @@ func postCommand(c *cli.Context) error {
 }
 
 func putCommand(c *cli.Context) error {
-	if c.String("data") != "" {
-		if !isJSON(c.String("data")) {
-			return errors.New("Parameter --data is not in a proper JSON representation")
-		}
+	if c.String("data") != "" && c.String("file") != "" {
+		return errors.New("Parameter --data cannot be used with parameter --file")
+	}
+
+	json, errData := getData(c)
+	if errData != nil {
+		return errData
 	}
 
 	config, errConfig := getValidatedConfiguration()
@@ -368,7 +385,7 @@ func putCommand(c *cli.Context) error {
 		"-H",
 		"Content-Type: application/json",
 		"-d",
-		c.String("data"),
+		json,
 		fmt.Sprintf("%s%s", config.URL, c.String("resource")),
 	})
 	if err != nil {
@@ -388,10 +405,13 @@ func putCommand(c *cli.Context) error {
 }
 
 func patchCommand(c *cli.Context) error {
-	if c.String("data") != "" {
-		if !isJSON(c.String("data")) {
-			return errors.New("Parameter --data is not in a proper JSON representation")
-		}
+	if c.String("data") != "" && c.String("file") != "" {
+		return errors.New("Parameter --data cannot be used with parameter --file")
+	}
+
+	json, errData := getData(c)
+	if errData != nil {
+		return errData
 	}
 
 	config, errConfig := getValidatedConfiguration()
@@ -406,7 +426,7 @@ func patchCommand(c *cli.Context) error {
 		"-H",
 		"Content-Type: application/json",
 		"-d",
-		c.String("data"),
+		json,
 		fmt.Sprintf("%s%s", config.URL, c.String("resource")),
 	})
 	if err != nil {
@@ -559,4 +579,36 @@ func getValidatedConfiguration() (*Configuration, error) {
 func isJSON(input string) bool {
 	var js json.RawMessage
 	return json.Unmarshal([]byte(input), &js) == nil
+}
+
+func getJSONFromFile(path string) (string, error) {
+	bytes, errRead := ioutil.ReadFile(path)
+	if errRead != nil {
+		return "", errRead
+	}
+
+	str := string(bytes)
+	if !isJSON(str) {
+		return "", errors.New("The specified file does not contain valid JSON")
+	}
+	line := strings.Replace(strings.Replace(str, "\r\n", "", -1), "\n", "", -1)
+	return line, nil
+}
+
+func getData(c *cli.Context) (string, error) {
+	if c.String("data") != "" {
+		if !isJSON(c.String("data")) {
+			return "", errors.New("Parameter --data is not in a proper JSON representation")
+		}
+		return c.String("data"), nil
+	}
+
+	if c.String("file") != "" {
+		json, err := getJSONFromFile(c.String("file"))
+		if err != nil {
+			return "", err
+		}
+		return json, nil
+	}
+	return "", nil
 }
