@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -311,6 +312,12 @@ func getCommand(c *cli.Context) error {
 }
 
 func postCommand(c *cli.Context) error {
+	if c.String("data") != "" {
+		if !isJSON(c.String("data")) {
+			return errors.New("Parameter --data is not in a proper JSON representation")
+		}
+	}
+
 	config, errConfig := getValidatedConfiguration()
 	if errConfig != nil {
 		return errConfig
@@ -343,6 +350,12 @@ func postCommand(c *cli.Context) error {
 }
 
 func putCommand(c *cli.Context) error {
+	if c.String("data") != "" {
+		if !isJSON(c.String("data")) {
+			return errors.New("Parameter --data is not in a proper JSON representation")
+		}
+	}
+
 	config, errConfig := getValidatedConfiguration()
 	if errConfig != nil {
 		return errConfig
@@ -375,6 +388,12 @@ func putCommand(c *cli.Context) error {
 }
 
 func patchCommand(c *cli.Context) error {
+	if c.String("data") != "" {
+		if !isJSON(c.String("data")) {
+			return errors.New("Parameter --data is not in a proper JSON representation")
+		}
+	}
+
 	config, errConfig := getValidatedConfiguration()
 	if errConfig != nil {
 		return errConfig
@@ -535,4 +554,9 @@ func getValidatedConfiguration() (*Configuration, error) {
 		return nil, errors.New("Please run command 'login' and try again")
 	}
 	return &config, nil
+}
+
+func isJSON(input string) bool {
+	var js json.RawMessage
+	return json.Unmarshal([]byte(input), &js) == nil
 }
