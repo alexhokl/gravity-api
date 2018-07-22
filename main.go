@@ -326,8 +326,10 @@ func executeCommands(config *Configuration, cmd Command, verb string, resource s
 		args = append(args, "-H", "Content-Type: application/json", "-d", jsonData)
 	}
 
-	args = append(args, fmt.Sprintf("%s%s%s", config.URL, resource, queryString))
+	url := fmt.Sprintf("%s%s%s", config.URL, resource, queryString)
+	args = append(args, url)
 
+	fmt.Printf("[%s] %s\n", verb, url)
 	output, err := executeHTTPCommand(cmd, isVerbose, config.Token, args)
 	if err != nil {
 		return err
