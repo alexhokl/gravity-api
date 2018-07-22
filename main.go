@@ -66,9 +66,17 @@ func main() {
 		Name:  "data, d",
 		Usage: "JSON data (this cannot be used with parameter --file)",
 	}
+	noResponseFlag := cli.BoolFlag{
+		Name:  "no-response",
+		Usage: "Do not show HTTP response",
+	}
+	noStatFlag := cli.BoolFlag{
+		Name:  "no-stat",
+		Usage: "Do not show statistics",
+	}
 
-	queryFlags := []cli.Flag{resourceFlag, selectorFlag, paramFileFlag}
-	dataFlags := []cli.Flag{resourceFlag, selectorFlag, fileFlag, dataFlag}
+	queryFlags := []cli.Flag{resourceFlag, selectorFlag, paramFileFlag, noResponseFlag, noStatFlag}
+	dataFlags := []cli.Flag{resourceFlag, selectorFlag, fileFlag, dataFlag, noResponseFlag, noStatFlag}
 
 	app := cli.NewApp()
 	app.Usage = "A CLI tool to interact with Gravity APIs"
@@ -287,7 +295,7 @@ func executeDataCommands(c *cli.Context, cmd Command, verb string) error {
 		return errConfig
 	}
 
-	return executeCommands(config, cmd, verb, c.String("resource"), "", json, c.String("selector"), c.GlobalBool("verbose"))
+	return executeCommands(config, cmd, verb, c.String("resource"), "", json, c.String("selector"), !c.Bool("no-stat"), !c.Bool("no-response"), c.GlobalBool("verbose"))
 }
 
 func executeQueryStringCommands(c *cli.Context, cmd Command, verb string) error {
@@ -305,10 +313,10 @@ func executeQueryStringCommands(c *cli.Context, cmd Command, verb string) error 
 		queryString = queryStr
 	}
 
-	return executeCommands(config, cmd, verb, c.String("resource"), queryString, "", c.String("selector"), c.GlobalBool("verbose"))
+	return executeCommands(config, cmd, verb, c.String("resource"), queryString, "", c.String("selector"), !c.Bool("no-stat"), !c.Bool("no-response"), c.GlobalBool("verbose"))
 }
 
-func executeCommands(config *Configuration, cmd Command, verb string, resource string, queryString string, jsonData string, selector string, isVerbose bool) error {
+func executeCommands(config *Configuration, cmd Command, verb string, resource string, queryString string, jsonData string, selector string, isShowStat bool, isShowResponse bool, isVerbose bool) error {
 	args := []string{
 		"-X",
 		verb,
@@ -324,13 +332,17 @@ func executeCommands(config *Configuration, cmd Command, verb string, resource s
 	if err != nil {
 		return err
 	}
-	fmt.Println(output)
+	if isShowStat {
+		fmt.Println(output)
+	}
 
 	jqOutput, errJq := executeJqCommand(cmd, isVerbose, []string{selector})
 	if errJq != nil {
 		return errJq
 	}
-	fmt.Println(jqOutput)
+	if isShowResponse {
+		fmt.Println(jqOutput)
+	}
 
 	return nil
 }
