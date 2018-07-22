@@ -72,11 +72,15 @@ func main() {
 	}
 	noStatFlag := cli.BoolFlag{
 		Name:  "no-stat",
-		Usage: "Do not show statistics",
+		Usage: "Do not show statistics (this cannot be used with parameter --only-server-processing-time",
+	}
+	onlyServerProcessStatFlag := cli.BoolFlag{
+		Name:  "only-server-processing-time",
+		Usage: "Show only server processing time and no other statistics (this cannot be used with parameter --no-stat)",
 	}
 
-	queryFlags := []cli.Flag{resourceFlag, selectorFlag, paramFileFlag, noResponseFlag, noStatFlag}
-	dataFlags := []cli.Flag{resourceFlag, selectorFlag, fileFlag, dataFlag, noResponseFlag, noStatFlag}
+	queryFlags := []cli.Flag{resourceFlag, selectorFlag, paramFileFlag, noResponseFlag, noStatFlag, onlyServerProcessStatFlag}
+	dataFlags := []cli.Flag{resourceFlag, selectorFlag, fileFlag, dataFlag, noResponseFlag, noStatFlag, onlyServerProcessStatFlag}
 
 	app := cli.NewApp()
 	app.Usage = "A CLI tool to interact with Gravity APIs"
@@ -285,6 +289,10 @@ func executeDataCommands(c *cli.Context, cmd Command, verb string) error {
 		return errors.New("Parameter --data cannot be used with parameter --file")
 	}
 
+	if c.Bool("no-stat") && c.Bool("only-server-processing-time") {
+		return errors.New("Parameter --no-stat cannot be used with parameter --only-server-processing-time")
+	}
+
 	json, errData := getData(c)
 	if errData != nil {
 		return errData
@@ -295,10 +303,14 @@ func executeDataCommands(c *cli.Context, cmd Command, verb string) error {
 		return errConfig
 	}
 
-	return executeCommands(config, cmd, verb, c.String("resource"), "", json, c.String("selector"), !c.Bool("no-stat"), !c.Bool("no-response"), c.GlobalBool("verbose"))
+	return executeCommands(config, cmd, verb, c.String("resource"), "", json, c.String("selector"), !c.Bool("no-stat"), !c.Bool("no-response"), c.Bool("only-server-processing-time"), c.GlobalBool("verbose"))
 }
 
 func executeQueryStringCommands(c *cli.Context, cmd Command, verb string) error {
+	if c.Bool("no-stat") && c.Bool("only-server-processing-time") {
+		return errors.New("Parameter --no-stat cannot be used with parameter --only-server-processing-time")
+	}
+
 	config, errConfig := getValidatedConfiguration()
 	if errConfig != nil {
 		return errConfig
@@ -313,10 +325,10 @@ func executeQueryStringCommands(c *cli.Context, cmd Command, verb string) error 
 		queryString = queryStr
 	}
 
-	return executeCommands(config, cmd, verb, c.String("resource"), queryString, "", c.String("selector"), !c.Bool("no-stat"), !c.Bool("no-response"), c.GlobalBool("verbose"))
+	return executeCommands(config, cmd, verb, c.String("resource"), queryString, "", c.String("selector"), !c.Bool("no-stat"), !c.Bool("no-response"), c.Bool("only-server-processing-time"), c.GlobalBool("verbose"))
 }
 
-func executeCommands(config *Configuration, cmd Command, verb string, resource string, queryString string, jsonData string, selector string, isShowStat bool, isShowResponse bool, isVerbose bool) error {
+func executeCommands(config *Configuration, cmd Command, verb string, resource string, queryString string, jsonData string, selector string, isShowStat bool, isShowResponse bool, isOnlyServerTime bool, isVerbose bool) error {
 	args := []string{
 		"-X",
 		verb,
@@ -335,7 +347,11 @@ func executeCommands(config *Configuration, cmd Command, verb string, resource s
 		return err
 	}
 	if isShowStat {
-		fmt.Println(output)
+		if isOnlyServerTime {
+			fmt.Println(getProcessingTime(output))
+		} else {
+			fmt.Println(output)
+		}
 	}
 
 	jqOutput, errJq := executeJqCommand(cmd, isVerbose, []string{selector})
@@ -572,4 +588,32 @@ func getStringFromJSON(jsonObj *json.RawMessage) (string, error) {
 	var value string
 	err := json.Unmarshal(*jsonObj, &value)
 	return value, err
+}
+
+func getProcessingTime(output string) string {
+	if output == "" {
+		return ""
+	}
+
+	lines := strings.Split(output, "\n")
+	search := func(lines []string) int {
+		for i, l := range lines {
+			if strings.Contains(l, "Server Processing") {
+				return i
+			}
+		}
+		return -1
+	}
+
+	index := search(lines)
+	if index < 0 || (index+1) >= len(lines) {
+		return ""
+	}
+
+	timings := strings.Split(lines[index+1], "|")
+	if len(timings) != 5 {
+		return ""
+	}
+
+	return strings.Trim(timings[3], " ")
 }
